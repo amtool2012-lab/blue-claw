@@ -47,10 +47,80 @@ function setStatus(text, isError = false) {
 }
 
 function escapeHtml(text) {
-  return text
+  return String(text)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+function isLocalActionMessage(text) {
+  return /^\/(?:cmd|app|browse|open|help)\b/i.test(String(text || "").trim());
+}
+
+function actionStatusText(status) {
+  if (status === "executed") return "Executed";
+  if (status === "cancelled") return "Cancelled";
+  if (status === "failed") return "Failed";
+  return "Pending approval";
+}
+
+function renderActionRequest(container, message) {
+  const requestData = message.actionRequest;
+  if (!requestData) return;
+
+  const card = document.createElement("section");
+  card.className = "action-card";
+  card.innerHTML = `
+    <div class="action-header">
+      <strong>${escapeHtml(requestData.label)}</strong>
+      <span class="action-status ${escapeHtml(requestData.status)}">${escapeHtml(actionStatusText(requestData.status))}</span>
+    </div>
+    <pre class="action-body">${escapeHtml(
+      requestData.type === "shell"
+        ? requestData.payload.command
+        : requestData.type === "browser"
+          ? requestData.payload.url
+          : requestData.payload.target
+    )}</pre>
+  `;
+
+  if (requestData.status === "pending") {
+    const actions = document.createElement("div");
+    actions.className = "action-controls";
+
+    const approveButton = document.createElement("button");
+    approveButton.type = "button";
+    approveButton.className = "primary-button inline-button";
+    approveButton.textContent = "Approve";
+    approveButton.addEventListener("click", () => handleAction(message, "execute"));
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "ghost-button inline-button";
+    cancelButton.textContent = "Cancel";
+    cancelButton.addEventListener("click", () => handleAction(message, "cancel"));
+
+    actions.appendChild(approveButton);
+    actions.appendChild(cancelButton);
+    card.appendChild(actions);
+  }
+
+  container.appendChild(card);
+}
+
+function renderActionResult(container, message) {
+  if (!message.actionResult) return;
+
+  const card = document.createElement("section");
+  card.className = "result-card";
+  card.innerHTML = `
+    <div class="action-header">
+      <strong>${escapeHtml(message.actionResult.title)}</strong>
+      <span class="action-status executed">Result</span>
+    </div>
+    <pre class="action-body">${escapeHtml(message.actionResult.text)}</pre>
+  `;
+  container.appendChild(card);
 }
 
 function renderMessage(message) {
@@ -58,6 +128,15 @@ function renderMessage(message) {
   node.classList.add(message.role === "user" ? "user-message" : "assistant-message");
   node.querySelector(".message-role").textContent = message.role === "user" ? "You" : "Blue Claw";
   node.querySelector(".message-body").innerHTML = escapeHtml(message.content).replaceAll("\n", "<br />");
+
+  if (message.actionRequest) {
+    renderActionRequest(node, message);
+  }
+
+  if (message.actionResult) {
+    renderActionResult(node, message);
+  }
+
   messages.appendChild(node);
 }
 
@@ -65,7 +144,7 @@ function renderEmptyState() {
   messages.innerHTML = `
     <section class="empty-state">
       <h3>Start simple</h3>
-      <p>Create a chat and talk to Blue Claw. Your history stays local in this folder.</p>
+      <p>Chat normally, or use <code>/cmd</code>, <code>/app</code>, <code>/browse</code>, and <code>/help</code> for local actions.</p>
     </section>
   `;
 }
@@ -96,8 +175,9 @@ function renderSessionList() {
 function renderConfigStatus(config) {
   state.configured = config.configured;
   configStatus.innerHTML = `
-    <p><strong>Status:</strong> ${config.configured ? "Configured" : "Needs API key"}</p>
+    <p><strong>Status:</strong> ${config.configured ? "Configured" : "Needs API key for normal chat"}</p>
     <p><strong>Model:</strong> ${config.model}</p>
+    <p><strong>Local tools:</strong> shell, apps, browser</p>
     <p><strong>Base URL:</strong> ${config.baseUrl}</p>
   `;
 }
@@ -125,6 +205,7 @@ async function loadSession(id) {
   }
 
   renderSessionList();
+  messages.scrollTop = messages.scrollHeight;
 }
 
 async function createSession() {
@@ -138,13 +219,29 @@ async function createSession() {
   renderEmptyState();
 }
 
+async function handleAction(message, verb) {
+  try {
+    setStatus(verb === "execute" ? "Running approved action..." : "Cancelling action...");
+    await request(`/api/actions/${message.actionRequest.id}/${verb}`, {
+      method: "POST",
+      body: JSON.stringify({ sessionId: state.sessionId })
+    });
+    await refreshSessions();
+    await loadSession(state.sessionId);
+    setStatus(verb === "execute" ? "Action complete." : "Action cancelled.");
+  } catch (error) {
+    setStatus(error.message, true);
+    await loadSession(state.sessionId);
+  }
+}
+
 async function sendMessage(event) {
   event.preventDefault();
   const message = messageInput.value.trim();
   if (!message) return;
 
-  if (!state.configured) {
-    setStatus("Add your API key in .env before sending messages.", true);
+  if (!state.configured && !isLocalActionMessage(message)) {
+    setStatus("Add your API key in .env for normal chat, or use /help for local actions.", true);
     return;
   }
 

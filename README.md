@@ -8,6 +8,7 @@ Blue Claw is a new OpenClaw rare species: a tiny, local-first personal AI assist
 - One browser UI instead of multi-channel messaging integrations
 - Local chat history stored in `data/sessions.json`
 - OpenAI-compatible configuration through a single `.env` file
+- Built-in local actions for shell commands, app launching, and browser opening
 - Two commands to start: install once, then run
 
 ## Quick start
@@ -51,6 +52,25 @@ Blue Claw is a new OpenClaw rare species: a tiny, local-first personal AI assist
 
 - `npm start`: run the app
 - `npm run dev`: run with Node watch mode
+
+## Local actions
+
+Blue Claw can perform a few local actions after an explicit approval click in the web UI:
+
+- `/cmd <powershell command>`: queue a shell command
+- `/app <application name or path>`: launch an app or file
+- `/browse <url or search query>`: open a browser page or search
+- `/open <url or search query>`: same as `/browse`
+- `/help`: show local action help
+
+Examples:
+
+```text
+/cmd Get-ChildItem
+/app notepad
+/browse openai.com
+/browse best local ramen near me
+```
 
 ## Project structure
 
