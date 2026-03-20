@@ -29,8 +29,57 @@
 
         <section class="panel setup-panel">
           <h2>Setup</h2>
-          <p>Copy <code>.env.example</code> to <code>.env</code>, add your API key, then restart the app.</p>
+          <p>Paste your provider settings here. Blue Claw saves them into <code>.env</code> for you.</p>
           <div id="config-status" class="config-status"></div>
+          <form id="settings-form" class="settings-form">
+            <label class="field">
+              <span>Provider</span>
+              <select id="provider-input">
+                <option value="openai">OpenAI</option>
+                <option value="openrouter">OpenRouter</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>OpenAI API Key</span>
+              <input id="openai-key-input" type="password" autocomplete="off" placeholder="sk-..." />
+            </label>
+
+            <label class="field provider-only" data-provider="openrouter">
+              <span>OpenRouter API Key</span>
+              <input id="openrouter-key-input" type="password" autocomplete="off" placeholder="sk-or-..." />
+            </label>
+
+            <label class="field">
+              <span>Base URL</span>
+              <input id="base-url-input" type="text" placeholder="https://api.openai.com/v1" />
+            </label>
+
+            <label class="field">
+              <span>Model</span>
+              <input id="model-input" type="text" placeholder="gpt-4o-mini" />
+            </label>
+
+            <label class="field provider-only" data-provider="openrouter">
+              <span>OpenRouter Site URL</span>
+              <input id="openrouter-site-url-input" type="text" placeholder="http://localhost:3000" />
+            </label>
+
+            <label class="field provider-only" data-provider="openrouter">
+              <span>OpenRouter App Name</span>
+              <input id="openrouter-app-name-input" type="text" placeholder="Blue Claw" />
+            </label>
+
+            <label class="field">
+              <span>System Prompt</span>
+              <textarea id="system-prompt-input" rows="4" placeholder="You are Blue Claw..."></textarea>
+            </label>
+
+            <div class="settings-actions">
+              <button type="submit" class="primary-button inline-button">Save setup</button>
+              <p id="settings-status" class="muted">Saved settings apply immediately.</p>
+            </div>
+          </form>
         </section>
       </aside>
 

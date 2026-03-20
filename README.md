@@ -55,6 +55,8 @@ Blue Claw is a new OpenClaw rare species: a tiny, local-first personal AI assist
 
 5. Open the local URL shown in the terminal. It will usually be [http://localhost:3000](http://localhost:3000), and Blue Claw will automatically try the next port if `3000` is already in use.
 
+You can also paste your API keys directly into the Setup panel in the app, which writes the local `.env` file for you.
+
 ## Environment variables
 
 - `AI_PROVIDER`: `openai` or `openrouter`

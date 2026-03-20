@@ -1,7 +1,8 @@
 const state = {
   sessionId: null,
   sessions: [],
-  configured: false
+  configured: false,
+  provider: "openai"
 };
 
 const sessionList = document.getElementById("session-list");
@@ -11,6 +12,17 @@ const messageInput = document.getElementById("message-input");
 const composerStatus = document.getElementById("composer-status");
 const configStatus = document.getElementById("config-status");
 const messageTemplate = document.getElementById("message-template");
+const settingsForm = document.getElementById("settings-form");
+const providerInput = document.getElementById("provider-input");
+const openAiKeyInput = document.getElementById("openai-key-input");
+const openRouterKeyInput = document.getElementById("openrouter-key-input");
+const baseUrlInput = document.getElementById("base-url-input");
+const modelInput = document.getElementById("model-input");
+const openrouterSiteUrlInput = document.getElementById("openrouter-site-url-input");
+const openrouterAppNameInput = document.getElementById("openrouter-app-name-input");
+const systemPromptInput = document.getElementById("system-prompt-input");
+const settingsStatus = document.getElementById("settings-status");
+const providerOnlyFields = Array.from(document.querySelectorAll(".provider-only"));
 
 async function request(url, options = {}) {
   const response = await fetch(url, {
@@ -44,6 +56,11 @@ function relativeTime(value) {
 function setStatus(text, isError = false) {
   composerStatus.textContent = text;
   composerStatus.classList.toggle("error-text", isError);
+}
+
+function setSettingsStatus(text, isError = false) {
+  settingsStatus.textContent = text;
+  settingsStatus.classList.toggle("error-text", isError);
 }
 
 function escapeHtml(text) {
@@ -174,6 +191,7 @@ function renderSessionList() {
 
 function renderConfigStatus(config) {
   state.configured = config.configured;
+  state.provider = config.provider || "openai";
   configStatus.innerHTML = `
     <p><strong>Status:</strong> ${config.configured ? "Configured" : "Needs API key for normal chat"}</p>
     <p><strong>Provider:</strong> ${config.provider}</p>
@@ -181,6 +199,34 @@ function renderConfigStatus(config) {
     <p><strong>Local tools:</strong> shell, apps, browser</p>
     <p><strong>Base URL:</strong> ${config.baseUrl}</p>
   `;
+}
+
+function getMissingKeyMessage() {
+  const provider = providerInput.value || state.provider || "openai";
+  if (provider === "openrouter") {
+    return "Add your OpenRouter API key in Setup before using normal chat, or use /help for local actions.";
+  }
+
+  return "Add your OpenAI API key in Setup before using normal chat, or use /help for local actions.";
+}
+
+function updateProviderFields() {
+  const provider = providerInput.value;
+  providerOnlyFields.forEach((field) => {
+    field.hidden = field.dataset.provider !== provider;
+  });
+}
+
+function renderSettings(settings) {
+  providerInput.value = settings.provider || "openai";
+  openAiKeyInput.value = settings.openAiApiKey || "";
+  openRouterKeyInput.value = settings.openRouterApiKey || "";
+  baseUrlInput.value = settings.baseUrl || "";
+  modelInput.value = settings.model || "";
+  openrouterSiteUrlInput.value = settings.openrouterSiteUrl || "";
+  openrouterAppNameInput.value = settings.openrouterAppName || "";
+  systemPromptInput.value = settings.systemPrompt || "";
+  updateProviderFields();
 }
 
 async function refreshSessions() {
@@ -192,6 +238,11 @@ async function refreshSessions() {
 async function refreshConfig() {
   const data = await request("/api/health");
   renderConfigStatus(data);
+}
+
+async function refreshSettings() {
+  const data = await request("/api/settings");
+  renderSettings(data.settings);
 }
 
 async function loadSession(id) {
@@ -236,13 +287,41 @@ async function handleAction(message, verb) {
   }
 }
 
+async function saveSettings(event) {
+  event.preventDefault();
+
+  try {
+    setSettingsStatus("Saving setup...");
+    const data = await request("/api/settings", {
+      method: "POST",
+      body: JSON.stringify({
+        provider: providerInput.value,
+        openAiApiKey: openAiKeyInput.value,
+        openRouterApiKey: openRouterKeyInput.value,
+        baseUrl: baseUrlInput.value,
+        model: modelInput.value,
+        openrouterSiteUrl: openrouterSiteUrlInput.value,
+        openrouterAppName: openrouterAppNameInput.value,
+        systemPrompt: systemPromptInput.value
+      })
+    });
+
+    renderSettings(data.settings);
+    renderConfigStatus(data.config);
+    setSettingsStatus("Setup saved.");
+    setStatus("Configuration updated.");
+  } catch (error) {
+    setSettingsStatus(error.message, true);
+  }
+}
+
 async function sendMessage(event) {
   event.preventDefault();
   const message = messageInput.value.trim();
   if (!message) return;
 
   if (!state.configured && !isLocalActionMessage(message)) {
-    setStatus("Add your API key in .env for normal chat, or use /help for local actions.", true);
+    setStatus(getMissingKeyMessage(), true);
     return;
   }
 
@@ -282,10 +361,12 @@ async function sendMessage(event) {
 
 document.getElementById("new-chat-button").addEventListener("click", createSession);
 document.getElementById("refresh-button").addEventListener("click", async () => {
-  await Promise.all([refreshSessions(), refreshConfig()]);
+  await Promise.all([refreshSessions(), refreshConfig(), refreshSettings()]);
   setStatus("Refreshed.");
 });
 chatForm.addEventListener("submit", sendMessage);
+settingsForm.addEventListener("submit", saveSettings);
+providerInput.addEventListener("change", updateProviderFields);
 
 messageInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
@@ -294,7 +375,7 @@ messageInput.addEventListener("keydown", (event) => {
   }
 });
 
-await Promise.all([refreshSessions(), refreshConfig()]);
+await Promise.all([refreshSessions(), refreshConfig(), refreshSettings()]);
 if (state.sessions.length) {
   await loadSession(state.sessions[0].id);
 } else {

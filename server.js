@@ -1,4 +1,5 @@
 import "dotenv/config";
+import dotenv from "dotenv";
 import express from "express";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -12,9 +13,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = Number(process.env.PORT || 3000);
 const dataDir = path.join(__dirname, "data");
 const sessionsFile = path.join(dataDir, "sessions.json");
+const envFile = path.join(__dirname, ".env");
 const actionTimeoutMs = 20_000;
 
 const APP_ALIASES = {
@@ -29,6 +30,60 @@ const APP_ALIASES = {
   vscode: "code",
   code: "code"
 };
+
+function readEnvSettings() {
+  if (!fs.existsSync(envFile)) {
+    return {};
+  }
+
+  try {
+    return dotenv.parse(fs.readFileSync(envFile, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function getSettingsValue(key, envSettings) {
+  if (Object.prototype.hasOwnProperty.call(envSettings, key)) {
+    return envSettings[key];
+  }
+
+  return process.env[key] || "";
+}
+
+function toEnvLine(key, value) {
+  const normalized = String(value ?? "");
+  if (!normalized) {
+    return `${key}=`;
+  }
+
+  if (/[\s#"'`]/.test(normalized)) {
+    return `${key}=${JSON.stringify(normalized)}`;
+  }
+
+  return `${key}=${normalized}`;
+}
+
+function writeEnvSettings(nextSettings) {
+  const lines = [
+    toEnvLine("AI_PROVIDER", nextSettings.AI_PROVIDER),
+    toEnvLine("OPENAI_API_KEY", nextSettings.OPENAI_API_KEY),
+    toEnvLine("OPENROUTER_API_KEY", nextSettings.OPENROUTER_API_KEY),
+    toEnvLine("OPENAI_BASE_URL", nextSettings.OPENAI_BASE_URL),
+    toEnvLine("OPENAI_MODEL", nextSettings.OPENAI_MODEL),
+    toEnvLine("OPENROUTER_SITE_URL", nextSettings.OPENROUTER_SITE_URL),
+    toEnvLine("OPENROUTER_APP_NAME", nextSettings.OPENROUTER_APP_NAME),
+    toEnvLine("SYSTEM_PROMPT", nextSettings.SYSTEM_PROMPT),
+    toEnvLine("PORT", nextSettings.PORT || process.env.PORT || "3000")
+  ];
+
+  fs.writeFileSync(envFile, `${lines.join("\n")}\n`);
+}
+
+function getStoredPort() {
+  const envSettings = readEnvSettings();
+  return envSettings.PORT || "3000";
+}
 
 function ensureStorage() {
   if (!fs.existsSync(dataDir)) {
@@ -103,18 +158,21 @@ function trimTitle(text) {
 }
 
 function getConfig() {
+  const envSettings = readEnvSettings();
   const provider = String(
-    process.env.AI_PROVIDER || (process.env.OPENROUTER_API_KEY ? "openrouter" : "openai")
+    getSettingsValue("AI_PROVIDER", envSettings) ||
+      (getSettingsValue("OPENROUTER_API_KEY", envSettings) ? "openrouter" : "openai")
   ).toLowerCase();
   const apiKey =
     provider === "openrouter"
-      ? process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || ""
-      : process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY || "";
+      ? getSettingsValue("OPENROUTER_API_KEY", envSettings) || getSettingsValue("OPENAI_API_KEY", envSettings) || ""
+      : getSettingsValue("OPENAI_API_KEY", envSettings) || getSettingsValue("OPENROUTER_API_KEY", envSettings) || "";
   const baseUrl =
-    process.env.OPENAI_BASE_URL ||
+    getSettingsValue("OPENAI_BASE_URL", envSettings) ||
     (provider === "openrouter" ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1");
   const model =
-    process.env.OPENAI_MODEL || (provider === "openrouter" ? "openai/gpt-4o-mini" : "gpt-4o-mini");
+    getSettingsValue("OPENAI_MODEL", envSettings) ||
+    (provider === "openrouter" ? "openai/gpt-4o-mini" : "gpt-4o-mini");
 
   return {
     provider,
@@ -122,8 +180,10 @@ function getConfig() {
     apiKey,
     baseUrl,
     model,
+    openrouterSiteUrl: getSettingsValue("OPENROUTER_SITE_URL", envSettings),
+    openrouterAppName: getSettingsValue("OPENROUTER_APP_NAME", envSettings),
     systemPrompt:
-      process.env.SYSTEM_PROMPT ||
+      getSettingsValue("SYSTEM_PROMPT", envSettings) ||
       "You are Blue Claw, a helpful personal AI assistant. Be concise, practical, and friendly.",
     tools: {
       shell: true,
@@ -142,6 +202,27 @@ function getPublicConfig() {
     model: config.model,
     systemPrompt: config.systemPrompt,
     tools: config.tools
+  };
+}
+
+function getPublicSettings() {
+  const config = getConfig();
+  const envSettings = readEnvSettings();
+  const openAiKey = getSettingsValue("OPENAI_API_KEY", envSettings);
+  const openRouterKey = getSettingsValue("OPENROUTER_API_KEY", envSettings);
+
+  return {
+    provider: config.provider,
+    openAiApiKey: openAiKey,
+    openRouterApiKey: openRouterKey,
+    openAiApiKeyMasked: openAiKey ? `${openAiKey.slice(0, 4)}...${openAiKey.slice(-4)}` : "",
+    openRouterApiKeyMasked: openRouterKey ? `${openRouterKey.slice(0, 4)}...${openRouterKey.slice(-4)}` : "",
+    baseUrl: config.baseUrl,
+    model: config.model,
+    openrouterSiteUrl: config.openrouterSiteUrl,
+    openrouterAppName: config.openrouterAppName || "Blue Claw",
+    systemPrompt: config.systemPrompt,
+    configured: config.configured
   };
 }
 
@@ -335,11 +416,11 @@ async function createAssistantReply(messages) {
   };
 
   if (config.provider === "openrouter") {
-    if (process.env.OPENROUTER_SITE_URL) {
-      headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL;
+    if (config.openrouterSiteUrl) {
+      headers["HTTP-Referer"] = config.openrouterSiteUrl;
     }
 
-    headers["X-Title"] = process.env.OPENROUTER_APP_NAME || "Blue Claw";
+    headers["X-Title"] = config.openrouterAppName || "Blue Claw";
   }
 
   const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
@@ -397,6 +478,45 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, name: "Blue Claw", ...getPublicConfig() });
+});
+
+app.get("/api/settings", (_req, res) => {
+  res.json({ settings: getPublicSettings() });
+});
+
+app.post("/api/settings", (req, res) => {
+  const envSettings = readEnvSettings();
+  const provider = String(req.body?.provider || "openai").toLowerCase() === "openrouter" ? "openrouter" : "openai";
+  const nextSettings = {
+    AI_PROVIDER: provider,
+    OPENAI_API_KEY: String(req.body?.openAiApiKey || "").trim(),
+    OPENROUTER_API_KEY: String(req.body?.openRouterApiKey || "").trim(),
+    OPENAI_BASE_URL: String(req.body?.baseUrl || "").trim(),
+    OPENAI_MODEL: String(req.body?.model || "").trim(),
+    OPENROUTER_SITE_URL: String(req.body?.openrouterSiteUrl || "").trim(),
+    OPENROUTER_APP_NAME: String(req.body?.openrouterAppName || "").trim(),
+    SYSTEM_PROMPT: String(req.body?.systemPrompt || "").trim(),
+    PORT: envSettings.PORT || "3000"
+  };
+
+  if (!nextSettings.OPENAI_BASE_URL) {
+    nextSettings.OPENAI_BASE_URL =
+      provider === "openrouter" ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1";
+  }
+
+  if (!nextSettings.OPENAI_MODEL) {
+    nextSettings.OPENAI_MODEL = provider === "openrouter" ? "openai/gpt-4o-mini" : "gpt-4o-mini";
+  }
+
+  if (provider !== "openrouter") {
+    nextSettings.OPENROUTER_SITE_URL = "";
+    if (!nextSettings.OPENROUTER_APP_NAME) {
+      nextSettings.OPENROUTER_APP_NAME = "Blue Claw";
+    }
+  }
+
+  writeEnvSettings(nextSettings);
+  res.json({ ok: true, settings: getPublicSettings(), config: getPublicConfig() });
 });
 
 app.get("/api/sessions", (_req, res) => {
@@ -576,6 +696,8 @@ app.post("/api/actions/:actionId/cancel", (req, res) => {
 });
 
 ensureStorage();
+
+const port = Number(getStoredPort() || process.env.PORT || 3000);
 
 function startServer(preferredPort, retries = 10) {
   const server = app.listen(preferredPort, () => {
