@@ -103,10 +103,25 @@ function trimTitle(text) {
 }
 
 function getConfig() {
+  const provider = String(
+    process.env.AI_PROVIDER || (process.env.OPENROUTER_API_KEY ? "openrouter" : "openai")
+  ).toLowerCase();
+  const apiKey =
+    provider === "openrouter"
+      ? process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || ""
+      : process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY || "";
+  const baseUrl =
+    process.env.OPENAI_BASE_URL ||
+    (provider === "openrouter" ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1");
+  const model =
+    process.env.OPENAI_MODEL || (provider === "openrouter" ? "openai/gpt-4o-mini" : "gpt-4o-mini");
+
   return {
-    configured: Boolean(process.env.OPENAI_API_KEY),
-    baseUrl: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
-    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    provider,
+    configured: Boolean(apiKey),
+    apiKey,
+    baseUrl,
+    model,
     systemPrompt:
       process.env.SYSTEM_PROMPT ||
       "You are Blue Claw, a helpful personal AI assistant. Be concise, practical, and friendly.",
@@ -115,6 +130,18 @@ function getConfig() {
       apps: true,
       browser: true
     }
+  };
+}
+
+function getPublicConfig() {
+  const config = getConfig();
+  return {
+    provider: config.provider,
+    configured: config.configured,
+    baseUrl: config.baseUrl,
+    model: config.model,
+    systemPrompt: config.systemPrompt,
+    tools: config.tools
   };
 }
 
@@ -299,15 +326,25 @@ function appendAssistantMessage(session, message) {
 async function createAssistantReply(messages) {
   const config = getConfig();
   if (!config.configured) {
-    throw new Error("Missing OPENAI_API_KEY. Copy .env.example to .env and add your key.");
+    throw new Error("Missing API key. Copy .env.example to .env and add OPENAI_API_KEY or OPENROUTER_API_KEY.");
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${config.apiKey}`
+  };
+
+  if (config.provider === "openrouter") {
+    if (process.env.OPENROUTER_SITE_URL) {
+      headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL;
+    }
+
+    headers["X-Title"] = process.env.OPENROUTER_APP_NAME || "Blue Claw";
   }
 
   const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-    },
+    headers,
     body: JSON.stringify({
       model: config.model,
       messages: [
@@ -359,7 +396,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, name: "Blue Claw", ...getConfig() });
+  res.json({ ok: true, name: "Blue Claw", ...getPublicConfig() });
 });
 
 app.get("/api/sessions", (_req, res) => {

@@ -25,11 +25,26 @@ Blue Claw is a new OpenClaw rare species: a tiny, local-first personal AI assist
    copy .env.example .env
    ```
 
-3. Edit `.env` and set:
+3. Edit `.env` and set either OpenAI or OpenRouter:
 
+   OpenAI:
+
+   - `AI_PROVIDER=openai`
    - `OPENAI_API_KEY`
    - Optional: `OPENAI_BASE_URL`
    - Optional: `OPENAI_MODEL`
+
+   OpenRouter:
+
+   - `AI_PROVIDER=openrouter`
+   - `OPENROUTER_API_KEY`
+   - `OPENAI_BASE_URL=https://openrouter.ai/api/v1`
+   - `OPENAI_MODEL=<provider/model-name>` such as `openai/gpt-4o-mini`
+   - Optional: `OPENROUTER_SITE_URL`
+   - Optional: `OPENROUTER_APP_NAME`
+
+   Common:
+
    - Optional: `SYSTEM_PROMPT`
 
 4. Start Blue Claw:
@@ -42,9 +57,13 @@ Blue Claw is a new OpenClaw rare species: a tiny, local-first personal AI assist
 
 ## Environment variables
 
-- `OPENAI_API_KEY`: required
-- `OPENAI_BASE_URL`: defaults to `https://api.openai.com/v1`
-- `OPENAI_MODEL`: defaults to `gpt-4o-mini`
+- `AI_PROVIDER`: `openai` or `openrouter`
+- `OPENAI_API_KEY`: OpenAI key when using OpenAI
+- `OPENROUTER_API_KEY`: OpenRouter key when using OpenRouter
+- `OPENAI_BASE_URL`: defaults to the provider's standard API base URL
+- `OPENAI_MODEL`: defaults to `gpt-4o-mini` for OpenAI and `openai/gpt-4o-mini` for OpenRouter
+- `OPENROUTER_SITE_URL`: optional `HTTP-Referer` header for OpenRouter
+- `OPENROUTER_APP_NAME`: optional `X-Title` header for OpenRouter
 - `SYSTEM_PROMPT`: defaults to Blue Claw's assistant prompt
 - `PORT`: defaults to `3000`
 
@@ -81,4 +100,4 @@ Examples:
 ## Notes
 
 - This is intentionally much smaller than OpenClaw. It focuses on chat and local session history only.
-- The app uses the OpenAI-compatible `chat/completions` endpoint so it can work with OpenAI and compatible providers.
+- The app uses the OpenAI-compatible `chat/completions` endpoint so it can work with OpenAI and OpenRouter.

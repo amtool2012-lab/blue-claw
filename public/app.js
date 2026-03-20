@@ -176,6 +176,7 @@ function renderConfigStatus(config) {
   state.configured = config.configured;
   configStatus.innerHTML = `
     <p><strong>Status:</strong> ${config.configured ? "Configured" : "Needs API key for normal chat"}</p>
+    <p><strong>Provider:</strong> ${config.provider}</p>
     <p><strong>Model:</strong> ${config.model}</p>
     <p><strong>Local tools:</strong> shell, apps, browser</p>
     <p><strong>Base URL:</strong> ${config.baseUrl}</p>
