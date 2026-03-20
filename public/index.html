@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blue Claw</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">BC</div>
+          <div>
+            <h1>Blue Claw</h1>
+            <p>Simple personal AI assistant</p>
+          </div>
+        </div>
+
+        <button id="new-chat-button" class="primary-button">New chat</button>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Recent chats</h2>
+            <button id="refresh-button" class="ghost-button" title="Refresh">Reload</button>
+          </div>
+          <div id="session-list" class="session-list"></div>
+        </section>
+
+        <section class="panel setup-panel">
+          <h2>Setup</h2>
+          <p>Copy <code>.env.example</code> to <code>.env</code>, add your API key, then restart the app.</p>
+          <div id="config-status" class="config-status"></div>
+        </section>
+      </aside>
+
+      <main class="main-panel">
+        <header class="hero">
+          <div>
+            <span class="eyebrow">Blue Claw</span>
+            <h2>OpenClaw vibes, minus the giant setup curve.</h2>
+            <p>One server, one browser tab, local chat history, OpenAI-compatible API settings.</p>
+          </div>
+        </header>
+
+        <section id="messages" class="messages"></section>
+
+        <form id="chat-form" class="composer">
+          <textarea
+            id="message-input"
+            rows="3"
+            placeholder="Ask Blue Claw anything..."
+          ></textarea>
+          <div class="composer-footer">
+            <p id="composer-status">Ready.</p>
+            <button id="send-button" type="submit" class="primary-button">Send</button>
+          </div>
+        </form>
+      </main>
+    </div>
+
+    <template id="message-template">
+      <article class="message">
+        <div class="message-role"></div>
+        <div class="message-body"></div>
+      </article>
+    </template>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

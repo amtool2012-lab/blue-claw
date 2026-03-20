@@ -1,0 +1,22 @@
+{
+  "name": "blue-claw",
+  "version": "0.1.0",
+  "description": "A simple, local-first personal AI assistant inspired by OpenClaw.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "assistant",
+    "chat",
+    "openai",
+    "local-first"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2"
+  }
+}
